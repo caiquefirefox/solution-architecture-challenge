@@ -20,7 +20,7 @@
 
   ## Índice
   1. [Requisitos de Negócio](#requisitos-de-negócio)
-  2. [Domínios Funcionais & Capacidades](#domínios-funcionais--capacidades)
+  2. [Domínios Funcionais e Capacidades](#domínios-funcionais-e-capacidades)
   3. [Requisitos Funcionais e Não Funcionais](#requisitos-funcionais-e-não-funcionais)
   4. [Arquitetura Alvo (com Diagramas Mermaid)](#arquitetura-alvo-com-diagramas-mermaid)
   5. [Justificativas Técnicas](#justificativas-técnicas)
@@ -44,7 +44,7 @@
 
   ---
 
-  ## Domínios Funcionais & Capacidades
+  ## Domínios Funcionais e Capacidades
 
   **Domínios**:
   - **Identidade e Acesso**: cadastro, login, JWT, refresh, logout.
