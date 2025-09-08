@@ -4,11 +4,21 @@
 
   Aplicação **full-stack** para controle do **fluxo de caixa diário** por usuário. Permite registrar **lançamentos** de **Débito/Crédito**, consultar por período e gerar **relatório consolidado** com **saldo do dia** e **saldo acumulado**, com autenticação segura e telemetria pronta para ambientes de produção.
 
-  - **Backend:** .NET 9 C# (ASP.NET Core) com **Clean Architecture + CQRS**, **EF Core (PostgreSQL)** e **migrations**.
-  - **Segurança:** **JWT** com **refresh rotativo** e logout individual/global; senhas com **PBKDF2**; **CORS** por ambiente.
+  **Atualização importante:** a solução foi **separada em dois serviços**:
+  - **API Principal (`desafio.fluxocaixa.api`)** — identidade (register/login/refresh/logout) e **lançamentos** (CRUD).
+  - **API de Relatórios (`desafio.fluxocaixa.relatorios.api`)** — **saldo diário consolidado** (leitura agregada), **isolada** para escalar e falhar de forma independente.
+  
+  **Roteamento**: um **Nginx** frontal (`router`) expõe `http://localhost:8080` para o **frontend**, roteando:
+  - `/api/v1/relatorios/**` → **Relatórios**
+  - `/api/**` → **API Principal**
+    
+  ---
+  
+  - **Backend:** .NET 9 C# (ASP.NET Core) com **Clean Architecture + CQRS**, **EF Core (PostgreSQL)** e **migrations**. A API de Relatórios usa **Npgsql** direto (read-only).
+  - **Segurança:** **JWT** com **refresh rotativo** e logout individual/global; senhas com **PBKDF2**; **CORS** por ambiente (Nginx + APIs).
   - **Observabilidade:** **Serilog** (logs estruturados) + **OpenTelemetry** (traces/métricas via OTLP).
   - **Frontend:** **React + Vite + TypeScript + Tailwind**, com **componentes reutilizáveis** e gráfico do saldo acumulado.
-  - **Execução:** **Docker Compose** (API, Web e Postgres) ou execução local via `dotnet run` e `npm run dev`.
+  - **Execução:** **Docker Compose** (Web, API Principal, API de Relatórios e Postgres) ou execução local via `dotnet run` e `npm run dev`.
   - **Qualidade:** validações (FluentValidation), testes de domínio/aplicação, e documentação com diagramas Mermaid no README.
 
   ### Funcionalidades
@@ -85,6 +95,16 @@
   - **Manutenibilidade**: Clean Architecture + CQRS, testes do domínio (saldo).
   - **Portabilidade**: Docker Compose e CLI (`dotnet`, `npm`).
 
+  **Critério não funcional específico (picos e isolamento)**  
+  > “O serviço de controle de lançamento **não deve ficar indisponível** se o sistema de consolidado diário cair. Em dias de pico, o serviço de consolidado recebe **50 req/s**, com no máximo **5%** de perda.”
+  
+  **Como foi atendido**:
+  - **Separação física** em dois serviços e **roteamento** por Nginx. Se **Relatórios** cair, o **CRUD** continua saudável.
+  - **Escala independente**: `desafio.fluxocaixa.relatorios.api` pode receber **réplicas** sem tocar na API Principal.
+  - **Consulta read-only otimizada** (Npgsql + SQL agregado, índices por `(UserId, Data)`), reduzindo pressão no EF/DbContext do CRUD.
+  - **Timeouts** no Nginx e (opcional) no HttpClient consumidor do Relatórios para conter **backpressure**; perdas até 5% sob pico ocorrem por **timeout** controlado no **Relatórios**, preservando o **SLO** do CRUD.
+  - **Evolução (futuro): CQRS a nível de banco** — particionar **escrita** (master) e **leitura** (read-replicas) para o domínio de relatórios, reduzindo latência e isolando carga de consultas intensivas.
+  
   ---
 
   ## Arquitetura Alvo (com Diagramas Mermaid)
@@ -92,90 +112,70 @@
   ### Contexto (alto nível)
   ```mermaid
   flowchart LR
-    U[Usuario] -->|SPA| Web["WebApp (React/Vite)"]
-    Web -->|HTTP + JWT| Api["API .NET 9 Clean Arch + CQRS"]
-    Api -->|EF Core| DB["(PostgreSQL)"]
-    Api -->|OTLP| OTel["OpenTelemetry Collector / APM"]
+    U[Usuário] -->|SPA| Web["WebApp (React/Vite)"]
+    Web -->|HTTP + JWT| Edge[Nginx Router]
+  
+    Edge -->|/api/**| Api["API Principal (.NET 9)"]
+    Edge -->|/api/v1/relatorios/**| Rep["API de Relatórios (.NET 9)"]
+  
+    Api -->|EF Core| DB[(PostgreSQL)]
+    Rep -->|"Npgsql (read-only)"| DB
+  
+    Api -->|OTLP| OTel[OTel Collector/APM]
+    Rep -->|OTLP| OTel
   ```
 
 
   ### Contêineres
-  ```mermaid
-  flowchart TB
-    subgraph Browser
-      U[Usuário]
-    end
+```mermaid
+flowchart TB
+  subgraph Frontend
+    FE["Web (5173)"]
+  end
 
-    subgraph Frontend["WebApp (React + Vite)"]
-      FE[SPA]
-    end
+  subgraph Routing
+    NX["Nginx Router (8080)"]
+  end
 
-    subgraph Backend["API (.NET 9)"]
-      CTRL[Controllers]
-MED[MediatR]
-APP[Application]
-DOM[Domain]
-INF[Infrastructure]
-    end
+  subgraph CoreAPI
+    API["desafio.fluxocaixa.api (8080 in)" -> host 8091]
+  end
 
-    subgraph Data["PostgreSQL"]
-      DB[(fluxodb)]
-    end
+  subgraph ReportsAPI
+    REP["desafio.fluxocaixa.relatorios.api (8080 in)" -> host 8082]
+  end
 
-    subgraph Observ["Observabilidade"]
-      OT[OpenTelemetry]
-SG[Serilog]
-    end
+  subgraph Data
+    PG[(PostgreSQL 5432)]
+  end
 
-    U --> FE --> Backend
-    Backend --> DB
-    Backend --> OT
-    Backend --> SG
-  ```
+  FE --> NX
+  NX --> API
+  NX --> REP
+  API --> PG
+  REP --> PG
+```
 
-  ### Componentes (Clean Architecture)
+  ### Componentes (visão de camadas)
   ```mermaid
   flowchart LR
-    subgraph API
-      AuthCtrl[AuthController]
-      LancCtrl[LancamentosController]
-      RelCtrl[RelatoriosController]
+    subgraph API_Principal
+      C1["Controllers (Auth/Lançamentos)"]
+      A1["Application (Commands/Queries + MediatR)"]
+      D1["Domain (User/Lancamento/...)"]
+      I1["Infrastructure (EF Core, JWT, PBKDF2)"]
+      C1 --> A1 --> I1
+      A1 --> D1
     end
-
-    subgraph Application
-      Med[MediatR]
-      Cmd[Commands]
-      Qry[Queries]
-      Val[Validators]
+  
+    subgraph API_Relatorios
+      C2["Controllers (Reports)"]
+      A2["Application (Commands/Queries + MediatR)"]
+      D2["Domain (Report)"]
+      I2["Infrastructure.(Npgsql)"]
+      C2 --> A2 --> I2
+      A2 --> D2
     end
-
-    subgraph Domain
-      User[User]
-      Lanc[Lancamento]
-      RT[RefreshToken]
-      Tipo[TipoLancamento]
-    end
-
-    subgraph Infrastructure
-      Db[AppDbContext]
-      Jwt[JwtTokenGenerator]
-      RTSvc[RefreshTokenService]
-      Pwd[PasswordHasher]
-    end
-
-    AuthCtrl --> Med
-    LancCtrl --> Med
-    RelCtrl  --> Med
-    Med --> Cmd
-    Med --> Qry
-    Cmd --> Db
-    Qry --> Db
-    Db --> User
-    Db --> Lanc
-    Db --> RT
-    Pwd -. usado por .-> Cmd
-    Jwt -. usado por .-> AuthCtrl
-    RTSvc -. usado por .-> AuthCtrl
   ```
 
   ### Modelo de Dados (ER)
@@ -231,47 +231,57 @@ SG[Serilog]
     Web-->>User: Atualiza tabela
   ```
 
-  ### Sequência — Relatório de Saldo Diário
+  ### Sequência — Relatório de Saldo Diário (via Nginx)
   ```mermaid
   sequenceDiagram
     autonumber
     actor User as Usuário
-    participant Web as WebApp
-    participant API
+    participant FE as WebApp
+    participant NX as Nginx Router
+    participant REP as Relatórios API
     participant DB as PostgreSQL
-
-    User->>Web: Solicita (de/até, saldoInicial)
-    Web->>API: GET /api/v1/relatorios/saldo-diario
-    API->>DB: SELECT lancamentos (group by data)
-    DB-->>API: Débitos/Créditos por dia
-    API->>API: Calcula saldo do dia e acumulado
-    API-->>Web: JSON diário
-    Web-->>User: Tabela + Gráfico
+  
+    User->>FE: Solicita relatório (de/até, saldoInicial)
+    FE->>NX: GET /api/v1/relatorios/saldo-diario (Bearer)
+    NX->>REP: Proxy da requisição
+    REP->>DB: SELECT agregações por dia (UserId, Data)
+    DB-->>REP: Débitos/Créditos por dia
+    REP->>REP: Calcula saldo do dia e acumulado
+    REP-->>NX: 200 JSON
+    NX-->>FE: 200 JSON
+    FE-->>User: Tabela + Gráfico
   ```
 
   ### Deployment — Dev e Produção
   ```mermaid
   flowchart LR
     subgraph Dev
-      Docker["Docker Compose"]
-      WebD["Web : 5173"]
-      ApiD["API : 8080"]
-      PgD[("PostgreSQL local")]
-      Docker --> WebD
-      Docker --> ApiD
-      ApiD --> PgD
+      DevFE[Web 5173]
+      DevNX[Nginx 8080]
+      DevAPI[API Principal host:8091 -> in:8080]
+      DevREP[Relatórios host:8082 -> in:8080]
+      DevPG[(Postgres)]
+      DevFE --> DevNX
+      DevNX --> DevAPI
+      DevNX --> DevREP
+      DevAPI --> DevPG
+      DevREP --> DevPG
     end
   
     subgraph Prod
-      Ingress["Ingress-LB"]
-      WebP["Web (Nginx)"]
-      ApiP["API (replicas)"]
-      PgP[("PostgreSQL Gerenciado")]
-      APM["OTLP / APM"]
-      Ingress --> WebP
-      Ingress --> ApiP
+      Edge[Ingress/LB :443]
+      WebP["Web (Nginx/static)"]
+      ApiP["API Principal (replicas)"]
+      RepP["Relatórios (replicas)"]
+      PgP["(PostgreSQL Gerenciado + read replicas)"]
+      APM[OTLP/APM]
+      Edge --> WebP
+      Edge --> ApiP
+      Edge --> RepP
       ApiP --> PgP
+      RepP --> PgP
       ApiP --> APM
+      RepP --> APM
     end
   ```
 
@@ -286,12 +296,15 @@ SG[Serilog]
   - **Clean Architecture + CQRS** — separa domínio/aplicação de infraestrutura/UI; facilita testes e evolução. CQRS permite otimizar caminhos de **escrita** (commands) e **leitura** (queries) sem acoplamento.
   - **MediatR + Behaviors** — centraliza **validação**, **telemetria** e demais *cross-cuttings* no pipeline, reduzindo repetição em controllers/handlers.
   - **Monólito modular (neste escopo)** — menor custo operacional inicial. O particionamento por domínios/capacidades permite extração futura para microserviços **sem reescrever** o core.
+  - **Split Core x Relatórios**: **isola falhas** e permite **escalar de forma independente** o caminho de leitura intensiva.  
+  - **Relatórios via Npgsql (read-only)**: menor overhead que EF para agregações simples.
   
   ### Persistência e Acesso a Dados
   - **PostgreSQL** — relacional robusto/portável, possui `numeric(14,2)` para valores monetários (sem erros de ponto flutuante).
   - **EF Core (Npgsql)** — produtividade com LINQ, **migrations** versionadas e rastreamento quando necessário. Consultas do relatório usam agregações SQL e **índice `(UserId, Data)`** para período.
   - **Migrations** — aplicadas automaticamente em Dev/Compose; em Produção, recomendadas via *init job* ou pipeline (janela controlada).
   - **Integridade e concorrência** — FKs explícitas, isolamento por usuário. Exclusão de lançamentos **física** (simples), com espaço para evoluir para **lógica** (auditoria) sem quebrar contrato.
+  - **Futuro (DB-level CQRS)**: **primário** para escrita + **read-replicas** para leitura (Relatórios).
   
   ### Segurança e Identidade
   - **JWT (HS256)** com `aud/iss/exp/iat/nbf/jti`; **access token** curto (~15 min) e **refresh token** (~7 dias) **rotativo** (novo refresh invalida o anterior). Refresh tokens são armazenados **hasheados** no banco.
@@ -341,28 +354,42 @@ SG[Serilog]
 
   ---
 
-  ## Como Rodar Localmente
-
   ### Com Docker Compose
   ```bash
   cd build/docker
   docker compose up -d --build
-  # Web:  http://localhost:5173
-  # API:  http://localhost:8080/swagger
+  # Frontend (Vite):         http://localhost:5173
+  # Roteador Nginx (API GW): http://localhost:8080
+  # Swagger API Principal:   http://localhost:8091/swagger
+  # Swagger Relatórios:      http://localhost:8082/swagger
   ```
-
+  
+  > **Importante:** mantenha **Jwt__Key/Issuer/Audience iguais** nas duas APIs.  
+  > O frontend deve chamar **sempre o Nginx** em `http://localhost:8080`.
+  
   ### Sem Docker
-  **Banco**: Postgres local (5432) e DB `fluxodb` (user/pass `app`/`app` ou ajuste a string).
-
-  **API**
+  
+  **Banco**  
+  - Postgres local (5432), DB `fluxodb`, credenciais `app/app` (ou ajuste a string).
+  
+  **API Principal**
   ```bash
   dotnet restore
-  dotnet tool restore
   cd src/Desafio.FluxoCaixa.Api
   dotnet run
-  # http://localhost:8080/swagger
+  # http://localhost:8080 (se ASPNETCORE_URLS=http://+:8080)
+  # ou http://localhost:8091/swagger quando rodando via Compose
   ```
-
+  
+  **API de Relatórios**
+  ```bash
+  dotnet restore
+  cd src/Desafio.FluxoCaixa.Relatorios.Api
+  dotnet run
+  # http://localhost:8080 (se ASPNETCORE_URLS=http://+:8080)
+  # ou http://localhost:8082/swagger quando via Compose
+  ```
+  
   **Web**
   ```bash
   cd src/WebApp
@@ -370,7 +397,19 @@ SG[Serilog]
   npm run dev
   # http://localhost:5173
   ```
-
+  
+  ---
+  
+  ## Rotas & Portas (Compose)
+  
+  - **router (Nginx):** `8080 → 80` (host → container)  
+    - `/api/**` → **desafio.fluxocaixa.api**  
+    - `/api/v1/relatorios/**` → **desafio.fluxocaixa.relatorios.api**
+  - **desafio.fluxocaixa.api (API Principal):** `8091 → 8080`  
+  - **desafio.fluxocaixa.relatorios.api (Relatórios):** `8082 → 8080`  
+  - **desafio.fluxocaixa.web (Vite):** `5173 → 5173`  
+  - **db (Postgres):** `5432 → 5432`
+  
   ---
 
   ## Endpoints Principais
