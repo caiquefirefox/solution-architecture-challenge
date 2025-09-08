@@ -2,10 +2,19 @@
   
   ## Fluxo de Caixa Diário — Clean Architecture + CQRS + JWT (NET 9)
 
-  Controle **lançamentos diários** (Débitos/Créditos) e gere o **saldo diário consolidado**.
-  Este monorepo contém **API .NET 9**, **Web (React + Vite + Tailwind)** e **PostgreSQL**, com **Serilog** e **OpenTelemetry**.
+  Aplicação **full-stack** para controle do **fluxo de caixa diário** por usuário. Permite registrar **lançamentos** de **Débito/Crédito**, consultar por período e gerar **relatório consolidado** com **saldo do dia** e **saldo acumulado**, com autenticação segura e telemetria pronta para ambientes de produção.
 
-  > Toda a documentação está **neste README**, com **diagramas Mermaid** renderizáveis no GitHub.
+  - **Backend:** .NET 9 (ASP.NET Core) com **Clean Architecture + CQRS**, **EF Core (PostgreSQL)** e **migrations**.
+  - **Segurança:** **JWT** com **refresh rotativo** e logout individual/global; senhas com **PBKDF2**; **CORS** por ambiente.
+  - **Observabilidade:** **Serilog** (logs estruturados) + **OpenTelemetry** (traces/métricas via OTLP).
+  - **Frontend:** **React + Vite + TypeScript + Tailwind**, com **componentes reutilizáveis** e gráfico do saldo acumulado.
+  - **Execução:** **Docker Compose** (API, Web e Postgres) ou execução local via `dotnet run` e `npm run dev`.
+  - **Qualidade:** validações (FluentValidation), testes de domínio/aplicação, e documentação com diagramas Mermaid no README.
+
+  ### Funcionalidades
+  - **Lançamentos:** criar, listar (por intervalo de datas) e remover.
+  - **Relatórios:** obter o **saldo diário consolidado** (débitos, créditos, saldo do dia e acumulado) com **saldo inicial** opcional.
+  - **Autenticação:** **cadastro, login, refresh e logout** para manter sessões curtas e seguras.
 
   ---
 
@@ -15,7 +24,7 @@
   3. [Requisitos Funcionais e Não Funcionais](#requisitos-funcionais-e-não-funcionais)
   4. [Arquitetura Alvo (com Diagramas Mermaid)](#arquitetura-alvo-com-diagramas-mermaid)
   5. [Justificativas Técnicas](#justificativas-técnicas)
-  6. [Operação & Observabilidade](#operação--observabilidade)
+  6. [Operação e Observabilidade](#operação-e-observabilidade)
   7. [Como Rodar Localmente](#como-rodar-localmente)
   8. [Endpoints Principais](#endpoints-principais)
   9. [Licença](#licença)
@@ -38,11 +47,11 @@
   ## Domínios Funcionais & Capacidades
 
   **Domínios**:
-  - **Identidade & Acesso**: cadastro, login, JWT, refresh, logout.
+  - **Identidade e Acesso**: cadastro, login, JWT, refresh, logout.
   - **Lançamentos**: registrar, listar, excluir.
   - **Relatórios**: consolidação diária; futuros CSV/PDF.
-  - **Plataforma & Observabilidade**: logs, métricas, traces, health.
-  - **Segurança & Conformidade**: hashing de senha, CORS/TLS, proteção de dados.
+  - **Plataforma e Observabilidade**: logs, métricas, traces, health.
+  - **Segurança e Conformidade**: hashing de senha, CORS/TLS, proteção de dados.
 
   **Capacidades de Negócio**:
   - **Gerir Usuário** (onboarding, autenticação, sessão).
@@ -56,14 +65,14 @@
   ## Requisitos Funcionais e Não Funcionais
 
   **Funcionais**
-  1. **Cadastro de Usuário** (`POST /auth/register`).
-  2. **Login** (`POST /auth/login`) → retorna `accessToken`, `refreshToken`, `expiresInSeconds`.
-  3. **Refresh** (`POST /auth/refresh`) com **rotação** segura.
-  4. **Logout** (`POST /auth/logout`) — atual ou **todos dispositivos**.
-  5. **Criar Lançamento** (`POST /lancamentos`) — data, tipo (1=Débito, 2=Crédito), valor, descrição.
-  6. **Listar Lançamentos** (`GET /lancamentos?de&ate`).
-  7. **Remover Lançamento** (`DELETE /lancamentos/{id}`).
-  8. **Relatório de Saldo Diário** (`GET /relatorios/saldo-diario?de&ate&saldoInicial`).
+  1. **Cadastro de Usuário** (`POST /auth/register`): cria conta com validação de `userName`, `email` e força mínima de senha; retorna 201 ou erros de validação.
+  2. **Login** (`POST /auth/login`): autentica por `userNameOrEmail + password`; emite `accessToken` (curta duração) e `refreshToken` (longa duração) para manter sessão.
+  3. **Refresh de Token** (`POST /auth/refresh`): renova a sessão de forma **rotativa** (novo refresh invalida o anterior), sem pedir credenciais novamente.
+  4. **Logout** (`POST /auth/logout`): finaliza sessão revogando o refresh **atual** ou **todos** os dispositivos do usuário.
+  5. **Criar Lançamento** (`POST /lancamentos`): registra **débitos** (1) e **créditos** (2) com `data`, `valor` numérico e `descrição`; vinculado ao usuário autenticado.
+  6. **Listar Lançamentos** (`GET /lancamentos?de&ate`): consulta por período, ordenado; pensado para paginação futura sem quebrar contrato.
+  7. **Remover Lançamento** (`DELETE /lancamentos/{id}`): exclusão lógica/física conforme estratégia; garante isolamento por usuário.
+  8. **Relatório de Saldo Diário** (`GET /relatorios/saldo-diario?de&ate&saldoInicial`): consolida por dia (débitos, créditos, saldo do dia e **acumulado**) com **saldo inicial** 
 
   **Não Funcionais**
   - **Segurança**: JWT + refresh rotativo; PBKDF2 (100k iterações+); CORS por ambiente; TLS em produção.
@@ -81,12 +90,12 @@
   ### Contexto (alto nível)
   ```mermaid
   flowchart LR
-    U[Usuário] -->|SPA| Web[WebApp (React/Vite)]
-    Web -->|HTTP + JWT| Api[API .NET 9
-(Clean Arch + CQRS)]
-    Api -->|EF Core (Npgsql)| DB[(PostgreSQL)]
-    Api -->|OTLP| OTel[(OpenTelemetry Collector/APM)]
+    U[Usuario] -->|SPA| Web["WebApp (React/Vite)"]
+    Web -->|HTTP + JWT| Api["API .NET 9 Clean Arch + CQRS"]
+    Api -->|EF Core| DB["(PostgreSQL)"]
+    Api -->|OTLP| OTel["OpenTelemetry Collector / APM"]
   ```
+
 
   ### Contêineres
   ```mermaid
@@ -242,20 +251,21 @@ SG[Serilog]
   ```mermaid
   flowchart LR
     subgraph Dev
-      Docker[(Docker Compose)]
-      WebD[Web:5173]
-      ApiD[API:8080]
-      PgD[(PostgreSQL local)]
-      Docker --> WebD & ApiD
+      Docker["Docker Compose"]
+      WebD["Web : 5173"]
+      ApiD["API : 8080"]
+      PgD[("PostgreSQL local")]
+      Docker --> WebD
+      Docker --> ApiD
       ApiD --> PgD
     end
-
+  
     subgraph Prod
-      Ingress[Ingress/LB]
-      WebP[Web (Nginx)]
-      ApiP[API (replicas)]
-      PgP[(PostgreSQL Gerenciado)]
-      APM[(OTLP / APM)]
+      Ingress["Ingress-LB"]
+      WebP["Web (Nginx)"]
+      ApiP["API (replicas)"]
+      PgP[("PostgreSQL Gerenciado")]
+      APM["OTLP / APM"]
       Ingress --> WebP
       Ingress --> ApiP
       ApiP --> PgP
@@ -266,19 +276,60 @@ SG[Serilog]
   ---
 
   ## Justificativas Técnicas
-
-  - **.NET 9 + Clean Architecture + CQRS** → testabilidade, separação de responsabilidades, evolução segura.
-  - **PostgreSQL** → robusto, `numeric(14,2)`, bom suporte EF/Npgsql.
-  - **React + Vite + Tailwind** → DX rápida, UI moderna e consistente.
-  - **Serilog** → logs estruturados e roteáveis.
-  - **OpenTelemetry (OTLP)** → padrão aberto para traces/métricas/logs.
-  - **Docker Compose** → bootstrap local simples.
-  - **PBKDF2** → hashing de senhas com parâmetros fortes.
-  - **JWT + Refresh** → sessão curta com renovação segura e logout granular.
+  
+  As escolhas foram guiadas pelos requisitos **funcionais** (cadastro/login, lançamentos e relatório consolidado) e **não funcionais** (segurança, desempenho, escalabilidade, resiliência, observabilidade, manutenibilidade e portabilidade). O objetivo é entregar valor rápido, com **qualidade arquitetural** e **rota de evolução** clara.
+  
+  ### Plataforma e Arquitetura
+  - **.NET 9 + ASP.NET Core** — runtime performático, DI nativa, pipeline HTTP eficiente e ótimo suporte a JSON/containers.
+  - **Clean Architecture + CQRS** — separa domínio/aplicação de infraestrutura/UI; facilita testes e evolução. CQRS permite otimizar caminhos de **escrita** (commands) e **leitura** (queries) sem acoplamento.
+  - **MediatR + Behaviors** — centraliza **validação**, **telemetria** e demais *cross-cuttings* no pipeline, reduzindo repetição em controllers/handlers.
+  - **Monólito modular (neste escopo)** — menor custo operacional inicial. O particionamento por domínios/capacidades permite extração futura para microserviços **sem reescrever** o core.
+  
+  ### Persistência e Acesso a Dados
+  - **PostgreSQL** — relacional robusto/portável, com `numeric(14,2)` para valores monetários (sem erros de ponto flutuante).
+  - **EF Core (Npgsql)** — produtividade com LINQ, **migrations** versionadas e rastreamento quando necessário. Consultas do relatório usam agregações SQL e **índice `(UserId, Data)`** para período.
+  - **Migrations** — aplicadas automaticamente em Dev/Compose; em Produção, recomendadas via *init job* ou pipeline (janela controlada).
+  - **Integridade & concorrência** — FKs explícitas, isolamento por usuário. Exclusão de lançamentos **física** (simples), com espaço para evoluir para **lógica** (auditoria) sem quebrar contrato.
+  
+  ### Segurança e Identidade
+  - **JWT (HS256)** com `aud/iss/exp/iat/nbf/jti`; **access token** curto (~15 min) e **refresh token** (~7 dias) **rotativo** (novo refresh invalida o anterior). Refresh tokens são armazenados **hasheados** no banco.
+  - **Senhas** — **PBKDF2-SHA256** com ≥150k iterações e *salt* único; parâmetros ajustáveis por ambiente (possível **Argon2id** futuro).
+  - **CORS/TLS/HSTS** — em Dev libera `http://localhost:5173`; em Prod restringe ao domínio oficial, TLS obrigatório e **HSTS**.
+  - **Data Protection Keys** persistidas fora do contêiner para permitir **scale-out**; **rate limiting** em login/APIs para reduzir brute force/abuso.
+  - **Logout** por dispositivo (revoga refresh específico) ou **global** (revoga todos).
+  - **Por que não OIDC externo agora?** Para o escopo do desafio, autenticação **in-app** é suficiente. A arquitetura aceita plugar IdP (AAD/Auth0/Keycloak) depois via **JWT Bearer/OpenIdConnect** sem grandes refatorações.
+  
+  ### Frontend
+  - **React + Vite + TypeScript** — DX rápida, *hot reload* e *type safety* ponta a ponta; **Vite** produz builds leves com *code-splitting*.
+  - **Tailwind** — consistência visual e produtividade; implementamos **componentes reutilizáveis** (Button, Input, Select, Card, Table) como base de um design system simples.
+  - **Validação** — **Zod** no registro (feedback imediato); espaço para evoluir com máscaras de moeda, i18n e ARIA/a11y.
+  - **Gráficos** — **Chart.js** cobre bem o saldo acumulado; pode migrar para Recharts/ECharts conforme necessidade.
+  
+  ### Observabilidade e Operação
+  - **Serilog** — logs **estruturados** (JSON) com correlação (`traceId/spanId`) e campos de negócio (`userId`, `path`, `statusCode`, `elapsedMs`); fácil rotear para Elastic/CloudWatch/Splunk.
+  - **OpenTelemetry** — instrumentação de **AspNetCore**, **HttpClient**, **EF Core** e **Runtime**, exportando via **OTLP** (Tempo/Jaeger/Grafana/Datadog) sem *vendor lock-in*.
+  - **Health checks** (startup/liveness/readiness) e **graceful shutdown** compatíveis com K8s/ECS.
+  - **12-Factor** — configuração por variáveis de ambiente (`Jwt__Key`, `ConnectionStrings__Postgres`, `OTEL_EXPORTER_OTLP_ENDPOINT`), `.env.example` e Dockerfile multi-stage.
+  
+  ### Escalabilidade e Evolução
+  - **API stateless** atrás de **Load Balancer** — escala horizontal sem *sticky session*.
+  - **Banco** — suporte a **read replicas** para leituras intensas e **materialized views/ETL** para janelas muito longas; quando surgirem integrações assíncronas, considerar **Outbox** e **idempotência**.
+  - **Estratégia evolutiva** — começar **monolítico** para otimizar *lead time*; migrar para **microserviços por bounded context** quando métricas apontarem ganho real (evita complexidade prematura).
+  
+  ### Qualidade e Testes
+  - **FluentValidation** em comandos; **Behaviors** do MediatR padronizam validação/telemetria.
+  - **Testes de Domínio** (saldo diário/acumulado) garantem regra de negócio; **testes de aplicação** cobrem handlers; **integração** com Postgres em contêiner (ou Testcontainers) valida repositórios/EF.
+  - **Padrões de código** — Analyzers do .NET, `EditorConfig`, ESLint/TS e (opcional) Prettier (`npm run fmt`).
+  
+  ### Alternativas consideradas (e por que não agora)
+  - **Microserviços desde o início** — eleva custo de operação/observabilidade e orquestração sem necessidade clara neste escopo; **monólito modular** entrega mais rápido com caminho de extração futura.
+  - **Event Sourcing** — poderoso para auditoria/temporalidade, mas aumenta complexidade (projeções, replays); requisitos atuais não justificam.
+  - **NoSQL** — não há necessidade de esquema flexível nem latência sub-ms; o relacional atende melhor agregações e integridade.
+  - **OIDC IdP externo** — agregaria gestão/custos; a solução **in-app** atende e continua interoperável com IdPs no futuro.
 
   ---
 
-  ## Operação & Observabilidade
+  ## Operação e Observabilidade
 
   - **Health**: `GET /health`
   - **Migrations**: aplicadas em startup via `Database.Migrate()` (sem `EnsureCreated`).
