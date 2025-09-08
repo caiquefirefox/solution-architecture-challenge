@@ -28,7 +28,7 @@
   7. [Como Rodar Localmente](#como-rodar-localmente)
   8. [Endpoints Principais](#endpoints-principais)
   9. [Estratégia de Branch — GitHub Flow](#estratégia-de-branch--github-flow)
-  10. [IDEs Recomendadas (com justificativas)](#ides-recomendadas-com-justificativas)
+  10. [IDEs Recomendadas (com justificativas)](#ides-recomendadas)
   11. [Licença](#licença)
 
   ---
