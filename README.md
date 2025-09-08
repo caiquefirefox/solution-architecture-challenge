@@ -4,7 +4,7 @@
 
   Aplicação **full-stack** para controle do **fluxo de caixa diário** por usuário. Permite registrar **lançamentos** de **Débito/Crédito**, consultar por período e gerar **relatório consolidado** com **saldo do dia** e **saldo acumulado**, com autenticação segura e telemetria pronta para ambientes de produção.
 
-  - **Backend:** .NET 9 (ASP.NET Core) com **Clean Architecture + CQRS**, **EF Core (PostgreSQL)** e **migrations**.
+  - **Backend:** .NET 9 C# (ASP.NET Core) com **Clean Architecture + CQRS**, **EF Core (PostgreSQL)** e **migrations**.
   - **Segurança:** **JWT** com **refresh rotativo** e logout individual/global; senhas com **PBKDF2**; **CORS** por ambiente.
   - **Observabilidade:** **Serilog** (logs estruturados) + **OpenTelemetry** (traces/métricas via OTLP).
   - **Frontend:** **React + Vite + TypeScript + Tailwind**, com **componentes reutilizáveis** e gráfico do saldo acumulado.
@@ -27,7 +27,9 @@
   6. [Operação e Observabilidade](#operação-e-observabilidade)
   7. [Como Rodar Localmente](#como-rodar-localmente)
   8. [Endpoints Principais](#endpoints-principais)
-  9. [Licença](#licença)
+  9. [Estratégia de Branch — GitHub Flow](#estratégia-de-branch--github-flow)
+  10. [IDEs Recomendadas (com justificativas)](#ides-recomendadas-com-justificativas)
+  11. [Licença](#licença)
 
   ---
 
@@ -79,7 +81,7 @@
   - **Desempenho**: p95 CRUD < 200ms; relatório < 400ms em períodos de até 90 dias.
   - **Escalabilidade**: API stateless (horizontal); Postgres com tuning/replicas; materiais/ETL futuro para janelas extensas.
   - **Resiliência**: health-checks, logs estruturados, métricas e traces OTel; migrations automatizadas controladas.
-  - **Observabilidade**: Serilog (console/JSON), OpenTelemetry (AspNetCore, HttpClient, EF).
+  - **Observabilidade**: Serilog (console/JSON), OpenTelemetry (NetCore, HttpClient, EF).
   - **Manutenibilidade**: Clean Architecture + CQRS, testes do domínio (saldo).
   - **Portabilidade**: Docker Compose e CLI (`dotnet`, `npm`).
 
@@ -280,7 +282,7 @@ SG[Serilog]
   As escolhas foram guiadas pelos requisitos **funcionais** (cadastro/login, lançamentos e relatório consolidado) e **não funcionais** (segurança, desempenho, escalabilidade, resiliência, observabilidade, manutenibilidade e portabilidade). O objetivo é entregar valor rápido, com **qualidade arquitetural** e **rota de evolução** clara.
   
   ### Plataforma e Arquitetura
-  - **.NET 9 + ASP.NET Core** — runtime performático, DI nativa, pipeline HTTP eficiente e ótimo suporte a JSON/containers.
+  - **.NET 9 C# + ASP.NET Core** — runtime performático, DI nativa, pipeline HTTP eficiente e ótimo suporte a JSON/containers.
   - **Clean Architecture + CQRS** — separa domínio/aplicação de infraestrutura/UI; facilita testes e evolução. CQRS permite otimizar caminhos de **escrita** (commands) e **leitura** (queries) sem acoplamento.
   - **MediatR + Behaviors** — centraliza **validação**, **telemetria** e demais *cross-cuttings* no pipeline, reduzindo repetição em controllers/handlers.
   - **Monólito modular (neste escopo)** — menor custo operacional inicial. O particionamento por domínios/capacidades permite extração futura para microserviços **sem reescrever** o core.
@@ -383,6 +385,48 @@ SG[Serilog]
   - `GET /api/v1/relatorios/saldo-diario?de=YYYY-MM-DD&ate=YYYY-MM-DD&saldoInicial=0`
 
   ---
+
+  ## Estratégia de Branch — GitHub Flow
+
+  O repositório segue **GitHub Flow**: histórico linear, `main` sempre estável/deployável, trabalho em **branches curtas** com **pull request** e **CI** obrigatória.
+  
+  ### Regras
+  - **`main`**: sempre verde (build + testes passam). Só recebe **merge via PR**.
+  - **Branches de trabalho**: a partir de `main`, pequenas e focadas.  
+    Padrões: `feature/<slug-curto>`, `fix/<bugid>-<slug>`, `chore/<tarefa>`, `docs/<topico>`.
+  - **Commits**: usar **Commits Semânticos**:  
+    `feat: ...`, `fix: ...`, `chore: ...`, `docs: ...`, `refactor: ...`, `test: ...`
+  - **Pull Requests**:
+    - 1+ aprovação obrigatória; **CI** (build, testes, lint) deve passar.
+    - Relacione issue: `Closes #123`.
+    - Preferir **squash merge** para manter histórico linear e mensagem limpa.
+  - **Versionamento & tags**:
+    - **SemVer**: `vMAJOR.MINOR.PATCH`.
+    - `feat` → **minor**, `fix` → **patch**; mudanças incompatíveis → **major**.
+    - Criar **tag** no merge para gerar release notes, posteriormente podemos avaliar o uso do Google Release Please para automatizar.
+  - **Hotfix**:
+    - Branch `fix/hotfix-<slug>` a partir de `main`; PR normal com **patch** (ex.: `v1.2.3`).
+  - **Proteções de branch**:
+    - *Require pull request reviews before merging* (≥1).
+    - *Require status checks to pass before merging* (build, testes, lint).
+    - *Require branches to be up to date before merging*.
+
+---
+
+  ## IDEs Recomendadas
+  
+  Escolha a IDE conforme a tarefa; todas funcionam bem no projeto.
+  
+  ### Visual Studio 2022 (Windows) — Back-end .NET
+  **Por que**: Debugger/profiler completos para ASP.NET Core; Test Explorer; integração com Docker e NuGet.  
+  **Quando usar**: desenvolvimento e depuração da **API** (.NET 9), testes e profiling.
+  
+  ### VS Code (qualquer SO) — Frontend React/TypeScript
+  **Por que**: leve, extensível, excelente para trabalhar com TypeScript.  
+  **Extensões**: **ESLint**, **Prettier**, **Tailwind CSS IntelliSense**, **DotENV**, **REST Client/Thunder Client**, integrado com o GitHub Copilot.
+  **Quando usar**: desenvolvimento do **frontend** e edições rápidas no repo.
+
+---
 
   ## Licença
 
