@@ -1,0 +1,123 @@
+# ------------------------------
+# OS / Editor cruft
+# ------------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+._*
+*.swp
+*.swo
+
+# ------------------------------
+# Node / React / Vite
+# ------------------------------
+node_modules/
+dist/
+dist-ssr/
+.vite/
+**/.cache/
+**/.parcel-cache/
+coverage/
+.npm/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.bun/
+
+# TypeScript
+*.tsbuildinfo
+
+# Storybook / tooling (se adicionar futuramente)
+.storybook-out/
+storybook-static/
+
+# ------------------------------
+# IDEs
+# ------------------------------
+.vscode/*
+!.vscode/extensions.json
+# JetBrains Rider / IntelliJ
+.idea/
+*.sln.iml
+
+# ------------------------------
+# .NET / Visual Studio
+# ------------------------------
+[Bb]in/
+[Oo]bj/
+Debug/
+DebugPublic/
+Release/
+Releases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.pidb
+*.svclog
+*.cache
+*.dbmdl
+*.bak
+*.log
+*.ncrunch*
+_ReSharper*/
+*.DotSettings.user
+StyleCop.Cache
+TestResult*/
+TestResults/
+*.coverage
+*.coveragexml
+*.opencover.xml
+BenchmarkDotNet.Artifacts/
+artifacts/
+publish/
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+# Ferramentas locais
+.tools/
+
+# ------------------------------
+# Config / Secrets
+# ------------------------------
+# .envs locais (não versionar segredos)
+.env
+.env.*
+**/.env
+**/.env.*
+# AppSettings locais opcionais
+appsettings.Local.json
+appsettings.*.Local.json
+
+# ------------------------------
+# Docker
+# ------------------------------
+build/docker/.env*
+docker-data/
+**/*.pid
+*.tar
+*.gz
+
+# ------------------------------
+# Logs e chaves
+# ------------------------------
+logs/
+**/logs/
+*.log
+# Data Protection Keys (dev/local)
+**/DataProtection-Keys/
+
+# ------------------------------
+# Temporários
+# ------------------------------
+tmp/
+temp/
+*.tmp
