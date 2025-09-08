@@ -37,6 +37,7 @@ storybook-static/
 # ------------------------------
 # IDEs
 # ------------------------------
+.vs/*
 .vscode/*
 !.vscode/extensions.json
 # JetBrains Rider / IntelliJ

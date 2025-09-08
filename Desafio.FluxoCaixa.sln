@@ -12,7 +12,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Desafio.FluxoCaixa.Api", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Desafio.FluxoCaixa.Tests", "tests\Desafio.FluxoCaixa.Tests\Desafio.FluxoCaixa.Tests.csproj", "{7BC99D99-747D-5D09-939D-ECA360D6F29A}"
 EndProject
-Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "build/docker/docker-compose.dcproj", "{81DDED9D-158B-E303-5F62-77A2896D2A5A}"
+Project("{E53339B2-1760-4266-BCC7-CA923CBCF16C}") = "docker-compose", "build\docker\docker-compose.dcproj", "{81DDED9D-158B-E303-5F62-77A2896D2A5A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Desafio.FluxoCaixa.Relatorios.Api", "src\Desafio.FluxoCaixa.Relatorios.Api\Desafio.FluxoCaixa.Relatorios.Api.csproj", "{397CDB40-47D6-44B1-AC6D-CF3AD4CF923F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -44,6 +46,10 @@ Global
 		{81DDED9D-158B-E303-5F62-77A2896D2A5A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{81DDED9D-158B-E303-5F62-77A2896D2A5A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{81DDED9D-158B-E303-5F62-77A2896D2A5A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{397CDB40-47D6-44B1-AC6D-CF3AD4CF923F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{397CDB40-47D6-44B1-AC6D-CF3AD4CF923F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{397CDB40-47D6-44B1-AC6D-CF3AD4CF923F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{397CDB40-47D6-44B1-AC6D-CF3AD4CF923F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

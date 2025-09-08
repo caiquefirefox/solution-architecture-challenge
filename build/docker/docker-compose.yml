@@ -13,6 +13,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - fluxocaixa-network
 
   desafio.fluxocaixa.api:
     image: ${DOCKER_REGISTRY-}desafiofluxocaixaapi  
@@ -20,6 +22,7 @@ services:
       context: ../../src
       dockerfile: Desafio.FluxoCaixa.Api/Dockerfile
     environment:
+      ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Postgres: Host=db;Database=fluxodb;Username=app;Password=app
       Jwt__Key: super-secret-em-dev-trocar-no-deploy-123456789
       Jwt__Issuer: fluxo.caixa
@@ -27,7 +30,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports: ["8080:8080"]
+    ports: ["8091:8080"]
+    networks:
+      - fluxocaixa-network
 
   desafio.fluxocaixa.web:
     image: ${DOCKER_REGISTRY-}desafiofluxocaixawebapp  
@@ -36,6 +41,41 @@ services:
       args: { API_URL: http://localhost:8080 }
     depends_on: [ desafio.fluxocaixa.api ]
     ports: ["5173:5173"]
+    networks:
+      - fluxocaixa-network
+
+  desafio.fluxocaixa.relatorios.api:
+    build:
+      context: ../../src
+      dockerfile: Desafio.FluxoCaixa.Relatorios.Api/Dockerfile
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Postgres: Host=db;Database=fluxodb;Username=app;Password=app;Command Timeout=2;Application Name=Reporting
+      Jwt__Key: super-secret-em-dev-trocar-no-deploy-123456789
+      Jwt__Issuer: fluxo.caixa
+      Jwt__Audience: fluxo.caixa.web
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["8082:8080"]
+    networks:
+      - fluxocaixa-network
+
+  router:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - desafio.fluxocaixa.api
+      - desafio.fluxocaixa.relatorios.api
+    networks:
+      - fluxocaixa-network
 
 volumes:
   pgdata: {}
+  
+networks:
+  fluxocaixa-network:
+    driver: bridge
