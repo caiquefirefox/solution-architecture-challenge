@@ -286,10 +286,10 @@ SG[Serilog]
   - **Monólito modular (neste escopo)** — menor custo operacional inicial. O particionamento por domínios/capacidades permite extração futura para microserviços **sem reescrever** o core.
   
   ### Persistência e Acesso a Dados
-  - **PostgreSQL** — relacional robusto/portável, com `numeric(14,2)` para valores monetários (sem erros de ponto flutuante).
+  - **PostgreSQL** — relacional robusto/portável, possui `numeric(14,2)` para valores monetários (sem erros de ponto flutuante).
   - **EF Core (Npgsql)** — produtividade com LINQ, **migrations** versionadas e rastreamento quando necessário. Consultas do relatório usam agregações SQL e **índice `(UserId, Data)`** para período.
   - **Migrations** — aplicadas automaticamente em Dev/Compose; em Produção, recomendadas via *init job* ou pipeline (janela controlada).
-  - **Integridade & concorrência** — FKs explícitas, isolamento por usuário. Exclusão de lançamentos **física** (simples), com espaço para evoluir para **lógica** (auditoria) sem quebrar contrato.
+  - **Integridade e concorrência** — FKs explícitas, isolamento por usuário. Exclusão de lançamentos **física** (simples), com espaço para evoluir para **lógica** (auditoria) sem quebrar contrato.
   
   ### Segurança e Identidade
   - **JWT (HS256)** com `aud/iss/exp/iat/nbf/jti`; **access token** curto (~15 min) e **refresh token** (~7 dias) **rotativo** (novo refresh invalida o anterior). Refresh tokens são armazenados **hasheados** no banco.
