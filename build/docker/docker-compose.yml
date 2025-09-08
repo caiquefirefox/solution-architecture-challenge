@@ -1,0 +1,41 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: fluxodb
+    ports: ["5432:5432"]
+    volumes: [ "pgdata:/var/lib/postgresql/data" ]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  desafio.fluxocaixa.api:
+    image: ${DOCKER_REGISTRY-}desafiofluxocaixaapi  
+    build:
+      context: ../../src
+      dockerfile: Desafio.FluxoCaixa.Api/Dockerfile
+    environment:
+      ConnectionStrings__Postgres: Host=db;Database=fluxodb;Username=app;Password=app
+      Jwt__Key: super-secret-em-dev-trocar-no-deploy-123456789
+      Jwt__Issuer: fluxo.caixa
+      Jwt__Audience: fluxo.caixa.web
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["8080:8080"]
+
+  desafio.fluxocaixa.web:
+    image: ${DOCKER_REGISTRY-}desafiofluxocaixawebapp  
+    build:
+      context: ../../src/WebApp
+      args: { API_URL: http://localhost:8080 }
+    depends_on: [ desafio.fluxocaixa.api ]
+    ports: ["5173:5173"]
+
+volumes:
+  pgdata: {}

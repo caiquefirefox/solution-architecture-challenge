@@ -1,0 +1,15 @@
+@startuml
+title Sequência — Gerar Relatório de Saldo Diário
+actor Usuário
+participant WebApp
+participant API
+database DB
+
+Usuário -> WebApp : Solicita relatório (de/até, saldoInicial)
+WebApp -> API : GET /relatorios/saldo-diario
+API -> DB : SELECT lancamentos por data (group by)
+DB --> API : Debitos/Creditos por dia
+API -> API : Calcula saldo do dia e acumulado
+API --> WebApp : JSON com lista diária
+WebApp --> Usuário : Tabela/Gráfico
+@enduml
